@@ -289,7 +289,7 @@ input_dim = len(words)
 output_dim = input_dim
 n_hidden = int(vec_dim*2 ) #隠れ層の次元
 
-prediction = Dialog(maxlen_e,maxlen_d,n_hidden,input_dim,vec_dim,output_dim)
+prediction = Seq2SeqModel(maxlen_e,maxlen_d,n_hidden,input_dim,vec_dim,output_dim)
 emb_param = 'param_seq2seq01.hdf5'
 row = e_train.shape[0]
 e_train = e_train.reshape(row,maxlen_e)
