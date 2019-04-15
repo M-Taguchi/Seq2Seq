@@ -284,4 +284,25 @@ d_train, d_test = np.vsplit(d,[n_split])
 t_train, t_test = np.vsplit(t,[n_split])
 vec_dim = 400
 epochs = 10
-batch_
+batch_size = 100
+input_dim = len(words)
+output_dim = input_dim
+n_hidden = int(vec_dim*2 ) #隠れ層の次元
+
+prediction = Dialog(maxlen_e,maxlen_d,n_hidden,input_dim,vec_dim,output_dim)
+emb_param = 'param_seq2seq01.hdf5'
+row = e_train.shape[0]
+e_train = e_train.reshape(row,maxlen_e)
+d_train = d_train.reshape(row,maxlen_d)
+t_train = t_train.reshape(row,maxlen_d)
+model = prediction.train(e_train, d_train,t_train,batch_size,epochs,emb_param)
+plot_model(model, show_shapes=True,to_file='seq2seq01.png') #ネットワーク図出力
+model.save_weights(emb_param)                                #学習済みパラメータセーブ
+
+row2 = e_test.shape[0]
+e_test = e_test.reshape(row2,maxlen_e)
+d_test = d_test.reshape(row2,maxlen_d)
+#t_test=t_test.reshape(row2,maxlen_d)
+print()
+perplexity = prediction.eval_perplexity(model,e_test,d_test,t_test,batch_size) 
+print('Perplexity=',perplexity)
