@@ -12,7 +12,6 @@ import pickle
 import gc
 import os
 
-from __future__ import print_function
 from keras.layers.core import Dense
 from keras.layers.core import Masking
 from keras.layers import Input
@@ -30,8 +29,17 @@ from keras import backend as K
 from keras.utils import np_utils
 from keras.utils import plot_model
 
-from pyknp import Jumanpp
+#from pyknp import Jumanpp
 import codecs
+
+from keras.backend.tensorflow_backend import set_session
+config = tf.ConfigProto(
+    gpu_options=tf.GPUOptions(
+        visible_device_list="2", # specify GPU number
+        allow_growth=True
+    )
+)
+set_session(tf.Session(config=config))
 
 class Seq2SeqModel :
     def __init__(self,max_len_e,max_len_d,n_hidden,input_dim,vec_dim,output_dim) :
@@ -53,11 +61,10 @@ class Seq2SeqModel :
         encoder_outputs, state_h, state_c = LSTM(self.n_hidden,name="encoder_LSTM",
                                                 return_state=True,
                                                 kernel_initializer=glorot_uniform(seed=20190415),
-                                                recurrent_initializer=orthogonal(gain=1.0,seed=20190415),
-                                                dropout=0.5,recurrent_dropout=0.5)(e_i)
+                                                recurrent_initializer=orthogonal(gain=1.0,seed=20190415))(e_i)
 
         #'encoder_outputs'は使わない。statesのみ使用する
-        encoder_states = [state_h, state_c]
+        encoder_states = [state_h,state_c]
 
         encoder_model = Model(inputs=encoder_input,outputs=[encoder_outputs,state_h,state_c])
 
@@ -67,8 +74,7 @@ class Seq2SeqModel :
         decoder_LSTM = LSTM(self.n_hidden,name="decoder_LSTM",
                            return_sequences=True,return_state=True,
                            kernel_initializer=glorot_uniform(seed=20190415),
-                           recurrent_initializer=orthogonal(gain=1.0,seed=20190415),
-                           dropout=0.5,recurrent_dropout=0.5)
+                           recurrent_initializer=orthogonal(gain=1.0,seed=20190415))
         decoder_Dense = Dense(self.output_dim,activation="softmax",name="decoder_Dense",
                              kernel_initializer=glorot_uniform(seed=20190415))
         #入力
@@ -83,7 +89,7 @@ class Seq2SeqModel :
         print("#4")
         decoder_outputs = decoder_Dense(d_outputs)
         model = Model(inputs=[encoder_input,decoder_inputs],outputs=decoder_outputs)
-        model.compile(loss="categorical_cross_entropy",optimizer="Adam",metrics=["categorical_accuracy"])
+        model.compile(loss="categorical_crossentropy",optimizer="Adam",metrics=["categorical_accuracy"])
 
         #デコーダ(応答文生成)
         print("#5")
@@ -126,7 +132,7 @@ class Seq2SeqModel :
             mask2 = mask1.reshape(1,(e-s)*self.maxlen_d*self.output_dim)
             #予測
             y_predict1 = model.predict_on_batch([e_on_batch,d_on_batch])
-            y_predict2 = np.maxium(y_predict1,1e-7)
+            y_predict2 = np.maximum(y_predict1,1e-7)
             y_predict2 = -np.log(y_predict2)
             y_predict3 = y_predict2.reshape(1,(e-s)*self.maxlen_d*self.output_dim)
 
@@ -162,11 +168,16 @@ class Seq2SeqModel :
         row = e_train.shape[0]
         n_batch = math.ceil(row/batch_size)
         for i in range(0,n_batch) :
-            s = i*batch_size
+            s = i * batch_size
             e = min([(i+1)*batch_size,row])
+            if e != (i+1)*batch_size :
+                print(e)
             e_on_batch = e_test[s:e,:]
+            e_on_batch = np.reshape(e_on_batch,(len(e_on_batch),self.maxlen_e))
             d_on_batch = d_test[s:e,:]
+            d_on_batch = np.reshape(d_on_batch,(len(d_on_batch),self.maxlen_d))
             t_on_batch = t_test[s:e,:]
+            t_on_batch = np.reshape(t_on_batch,(len(t_on_batch),self.maxlen_d))
             t_on_batch = np_utils.to_categorical(t_on_batch,self.output_dim)
             result = model.train_on_batch([e_on_batch,d_on_batch],t_on_batch)
             list_loss.append(result[0])
@@ -176,7 +187,7 @@ class Seq2SeqModel :
             sys.stdout.write("\r"+str(e)+"/"+str(row)+" "+str(int(elapsed_time))+"s "+"\t"+
                             "{0:.4f}".format(np.average(list_loss))+"\t"+
                             "{0:.4f}".format(np.average(list_accuracy)))
-            sys.stddout.flush
+            sys.stdout.flush
             del e_on_batch, d_on_batch, t_on_batch
         
         #perplexity評価
@@ -193,7 +204,7 @@ class Seq2SeqModel :
         model, _, _ = self.create_model()
         if os.path.isfile(emb_param) :
             #埋め込みパラメータセット
-            model.load_weigths(emb_param)
+            model.load_weights(emb_param)
         
         print("#6")
         e_i = e_input
@@ -258,10 +269,10 @@ class Seq2SeqModel :
 #実行処理
 
 #辞書をロード
-with open("word_indices.pickle", "rb") as l :
+with open("words_indices.pickle", "rb") as l :
     word_indices=pickle.load(l)
 
-with open("indices_word.pickle", "rb") as m :
+with open("indices_words.pickle", "rb") as m :
     indices_word=pickle.load(m)
 
 #単語ファイルロード
@@ -278,7 +289,7 @@ with open("d.pickle", "rb") as g :
 
 #ラベルデータをロード
 with open("t.pickle", "rb") as h :
-    t = pickle
+    t = pickle.load(h)
 
 #maxlenロード
 with open("maxlen.pickle", "rb") as maxlen :
@@ -291,7 +302,7 @@ d_train, d_test = np.vsplit(d,[n_split])
 t_train, t_test = np.vsplit(t,[n_split])
 vec_dim = 400
 epochs = 10
-batch_size = 100
+batch_size = 500
 input_dim = len(words)
 output_dim = input_dim
 #隠れ層の次元
