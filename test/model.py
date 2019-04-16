@@ -302,7 +302,7 @@ d_train, d_test = np.vsplit(d,[n_split])
 t_train, t_test = np.vsplit(t,[n_split])
 vec_dim = 400
 epochs = 10
-batch_size = 500
+batch_size = 20
 input_dim = len(words)
 output_dim = input_dim
 #隠れ層の次元
