@@ -64,7 +64,12 @@ class Seq2SeqModel :
                                                 recurrent_initializer=orthogonal(gain=1.0,seed=20190415))(e_i)
 
         #'encoder_outputs'は使わない。statesのみ使用する
+<<<<<<< HEAD
         encoder_states = [state_h,state_c]
+=======
+        encoder_states = [state_h, state_c]
+        print(encoder_states)
+>>>>>>> origin/master
 
         encoder_model = Model(inputs=encoder_input,outputs=[encoder_outputs,state_h,state_c])
 
@@ -179,6 +184,7 @@ class Seq2SeqModel :
             t_on_batch = t_test[s:e,:]
             t_on_batch = np.reshape(t_on_batch,(len(t_on_batch),self.maxlen_d))
             t_on_batch = np_utils.to_categorical(t_on_batch,self.output_dim)
+            print(len(e_on_batch))
             result = model.train_on_batch([e_on_batch,d_on_batch],t_on_batch)
             list_loss.append(result[0])
             list_accuracy.append(result[1])
@@ -314,7 +320,7 @@ row = e_train.shape[0]
 e_train = e_train.reshape(row,maxlen_e)
 d_train = d_train.reshape(row,maxlen_d)
 t_train = t_train.reshape(row,maxlen_d)
-model = prediction.train(e_train, d_train,t_train,batch_size,epochs,emb_param)
+model = prediction.train(e_train,d_train,t_train,batch_size,epochs,emb_param)
 #ネットワーク図出力
 plot_model(model, show_shapes=True,to_file='seq2seq01.png')
 #学習済みパラメータセーブ
