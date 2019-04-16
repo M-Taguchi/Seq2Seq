@@ -164,11 +164,11 @@ class Seq2SeqModel :
             s = i*batch_size
             e = min([(i+1)*batch_size,row])
             e_on_batch = e_test[s:e,:]
-            e_on_batch = np.reshape(e_on_batch,(e-s,self.maxlen_e))
+            e_on_batch = np.reshape(e_on_batch,(len(e_on_batch),self.maxlen_e))
             d_on_batch = d_test[s:e,:]
-            d_on_batch = np.reshape(d_on_batch,(e-s,self.maxlen_d))
+            d_on_batch = np.reshape(d_on_batch,(len(d_on_batch),self.maxlen_d))
             t_on_batch = t_test[s:e,:]
-            t_on_batch = np.reshape(t_on_batch,(e-s,self.maxlen_d))
+            t_on_batch = np.reshape(t_on_batch,(len(t_on_batch),self.maxlen_d))
             t_on_batch = np_utils.to_categorical(t_on_batch,self.output_dim)
             print(len(e_on_batch))
             result = model.train_on_batch([e_on_batch,d_on_batch],t_on_batch)
@@ -261,10 +261,10 @@ class Seq2SeqModel :
 #実行処理
 
 #辞書をロード
-with open("word_indices.pickle", "rb") as l :
+with open("words_indices.pickle", "rb") as l :
     word_indices=pickle.load(l)
 
-with open("indices_word.pickle", "rb") as m :
+with open("indices_words.pickle", "rb") as m :
     indices_word=pickle.load(m)
 
 #単語ファイルロード
