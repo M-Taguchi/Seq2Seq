@@ -53,11 +53,11 @@ class Seq2SeqModel :
         encoder_outputs, state_h, state_c = LSTM(self.n_hidden,name="encoder_LSTM",
                                                 return_state=True,
                                                 kernel_initializer=glorot_uniform(seed=20190415),
-                                                recurrent_initializer=orthogonal(gain=1.0,seed=20190415),
-                                                dropout=0.5,recurrent_dropout=0.5)(e_i)
+                                                recurrent_initializer=orthogonal(gain=1.0,seed=20190415))(e_i)
 
         #'encoder_outputs'は使わない。statesのみ使用する
         encoder_states = [state_h, state_c]
+        print(encoder_states)
 
         encoder_model = Model(inputs=encoder_input,outputs=[encoder_outputs,state_h,state_c])
 
@@ -67,8 +67,7 @@ class Seq2SeqModel :
         decoder_LSTM = LSTM(self.n_hidden,name="decoder_LSTM",
                            return_sequences=True,return_state=True,
                            kernel_initializer=glorot_uniform(seed=20190415),
-                           recurrent_initializer=orthogonal(gain=1.0,seed=20190415),
-                           dropout=0.5,recurrent_dropout=0.5)
+                           recurrent_initializer=orthogonal(gain=1.0,seed=20190415))
         decoder_Dense = Dense(self.output_dim,activation="softmax",name="decoder_Dense",
                              kernel_initializer=glorot_uniform(seed=20190415))
         #入力
@@ -165,9 +164,13 @@ class Seq2SeqModel :
             s = i*batch_size
             e = min([(i+1)*batch_size,row])
             e_on_batch = e_test[s:e,:]
+            e_on_batch = np.reshape(e_on_batch,(e-s,self.maxlen_e))
             d_on_batch = d_test[s:e,:]
+            d_on_batch = np.reshape(d_on_batch,(e-s,self.maxlen_d))
             t_on_batch = t_test[s:e,:]
+            t_on_batch = np.reshape(t_on_batch,(e-s,self.maxlen_d))
             t_on_batch = np_utils.to_categorical(t_on_batch,self.output_dim)
+            print(len(e_on_batch))
             result = model.train_on_batch([e_on_batch,d_on_batch],t_on_batch)
             list_loss.append(result[0])
             list_accuracy.append(result[1])
@@ -176,7 +179,7 @@ class Seq2SeqModel :
             sys.stdout.write("\r"+str(e)+"/"+str(row)+" "+str(int(elapsed_time))+"s "+"\t"+
                             "{0:.4f}".format(np.average(list_loss))+"\t"+
                             "{0:.4f}".format(np.average(list_accuracy)))
-            sys.stddout.flush
+            sys.stdout.flush
             del e_on_batch, d_on_batch, t_on_batch
         
         #perplexity評価
@@ -303,7 +306,7 @@ row = e_train.shape[0]
 e_train = e_train.reshape(row,maxlen_e)
 d_train = d_train.reshape(row,maxlen_d)
 t_train = t_train.reshape(row,maxlen_d)
-model = prediction.train(e_train, d_train,t_train,batch_size,epochs,emb_param)
+model = prediction.train(e_train,d_train,t_train,batch_size,epochs,emb_param)
 #ネットワーク図出力
 plot_model(model, show_shapes=True,to_file='seq2seq01.png')
 #学習済みパラメータセーブ
