@@ -101,7 +101,7 @@ class Seq2SeqModel :
     
     #評価
     def eval_perplexity(self,model,e_test,d_test,t_test,batch_size) :
-        row = test.shape[0]
+        row = e_test.shape[0]
         list_loss = []
 
         s_time = time.time()
@@ -115,7 +115,7 @@ class Seq2SeqModel :
             e_on_batch = e_test[s:e,:]
             d_on_batch = d_test[s:e,:]
             t_on_batch = t_test[s:e,:]
-            t_on_batch = np_utils.to_categorical(t_onbatch,self.output_dim)
+            t_on_batch = np_utils.to_categorical(t_on_batch,self.output_dim)
             #mask行列作成
             mask1 = np.zeros((e-s,self.maxlen_d,self.output_dim),dtype=np.float32)
             for j in range(0,e-s) :
@@ -134,7 +134,7 @@ class Seq2SeqModel :
             #マスキング
             target1 = target * mask2
             #category_cross_entropy計算
-            loss = np.dot(y_predict3,target.T)
+            loss = np.dot(y_predict3,target1.T)
             sum_loss += loss[0,0]
             #perplexity計算
             perplexity = pow(math.e,sum_loss/n_loss)
@@ -190,8 +190,8 @@ class Seq2SeqModel :
     #学習
     def train(self,e_input,d_input,target,batch_size,epochs,emb_param) :
         print("#1",target.shape)
-        model, _, _ = self.create_model
-        if os.path.isfile(embparam) :
+        model, _, _ = self.create_model()
+        if os.path.isfile(emb_param) :
             #埋め込みパラメータセット
             model.load_weigths(emb_param)
         
@@ -257,6 +257,13 @@ class Seq2SeqModel :
 
 #実行処理
 
+#辞書をロード
+with open("word_indices.pickle", "rb") as l :
+    word_indices=pickle.load(l)
+
+with open("indices_word.pickle", "rb") as m :
+    indices_word=pickle.load(m)
+
 #単語ファイルロード
 with open("words.pickle", "rb") as ff :
     words = pickle.load(ff)
@@ -287,7 +294,8 @@ epochs = 10
 batch_size = 100
 input_dim = len(words)
 output_dim = input_dim
-n_hidden = int(vec_dim*2 ) #隠れ層の次元
+#隠れ層の次元
+n_hidden = int(vec_dim*2)
 
 prediction = Seq2SeqModel(maxlen_e,maxlen_d,n_hidden,input_dim,vec_dim,output_dim)
 emb_param = 'param_seq2seq01.hdf5'
@@ -296,8 +304,10 @@ e_train = e_train.reshape(row,maxlen_e)
 d_train = d_train.reshape(row,maxlen_d)
 t_train = t_train.reshape(row,maxlen_d)
 model = prediction.train(e_train, d_train,t_train,batch_size,epochs,emb_param)
-plot_model(model, show_shapes=True,to_file='seq2seq01.png') #ネットワーク図出力
-model.save_weights(emb_param)                                #学習済みパラメータセーブ
+#ネットワーク図出力
+plot_model(model, show_shapes=True,to_file='seq2seq01.png')
+#学習済みパラメータセーブ
+model.save_weights(emb_param)                               
 
 row2 = e_test.shape[0]
 e_test = e_test.reshape(row2,maxlen_e)
