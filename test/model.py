@@ -29,8 +29,9 @@ from keras import backend as K
 from keras.utils import np_utils
 from keras.utils import plot_model
 
-#from pyknp import Jumanpp
+from pyknp import Jumanpp
 import codecs
+import argparse
 
 from keras.backend.tensorflow_backend import set_session
 config = tf.ConfigProto(
@@ -42,7 +43,7 @@ config = tf.ConfigProto(
 set_session(tf.Session(config=config))
 
 class Seq2SeqModel :
-    def __init__(self,max_len_e,max_len_d,n_hidden,input_dim,vec_dim,output_dim) :
+    def __init__(self,maxlen_e,maxlen_d,n_hidden,input_dim,vec_dim,output_dim) :
         self.maxlen_e = maxlen_e
         self.maxlen_d = maxlen_d
         self.n_hidden = n_hidden
@@ -61,15 +62,10 @@ class Seq2SeqModel :
         encoder_outputs, state_h, state_c = LSTM(self.n_hidden,name="encoder_LSTM",
                                                 return_state=True,
                                                 kernel_initializer=glorot_uniform(seed=20190415),
-                                                recurrent_initializer=orthogonal(gain=1.0,seed=20190415))(e_i)
+                                                recurrent_initializer=orthogonal(gain=1.0,seed=20190415),dropout=0.5,recurrent_dropout=0.5)(e_i)
 
         #'encoder_outputs'は使わない。statesのみ使用する
-<<<<<<< HEAD
-        encoder_states = [state_h,state_c]
-=======
         encoder_states = [state_h, state_c]
-        print(encoder_states)
->>>>>>> origin/master
 
         encoder_model = Model(inputs=encoder_input,outputs=[encoder_outputs,state_h,state_c])
 
@@ -79,7 +75,7 @@ class Seq2SeqModel :
         decoder_LSTM = LSTM(self.n_hidden,name="decoder_LSTM",
                            return_sequences=True,return_state=True,
                            kernel_initializer=glorot_uniform(seed=20190415),
-                           recurrent_initializer=orthogonal(gain=1.0,seed=20190415))
+                           recurrent_initializer=orthogonal(gain=1.0,seed=20190415),dropout=0.5,recurrent_dropout=0.5)
         decoder_Dense = Dense(self.output_dim,activation="softmax",name="decoder_Dense",
                              kernel_initializer=glorot_uniform(seed=20190415))
         #入力
@@ -177,17 +173,19 @@ class Seq2SeqModel :
             e = min([(i+1)*batch_size,row])
             if e != (i+1)*batch_size :
                 print(e)
-            e_on_batch = e_test[s:e,:]
+            e_on_batch = e_train[s:e,:]
             e_on_batch = np.reshape(e_on_batch,(len(e_on_batch),self.maxlen_e))
-            d_on_batch = d_test[s:e,:]
+            d_on_batch = d_train[s:e,:]
             d_on_batch = np.reshape(d_on_batch,(len(d_on_batch),self.maxlen_d))
-            t_on_batch = t_test[s:e,:]
+            t_on_batch = t_train[s:e,:]
             t_on_batch = np.reshape(t_on_batch,(len(t_on_batch),self.maxlen_d))
             t_on_batch = np_utils.to_categorical(t_on_batch,self.output_dim)
-            print(len(e_on_batch))
             result = model.train_on_batch([e_on_batch,d_on_batch],t_on_batch)
             list_loss.append(result[0])
             list_accuracy.append(result[1])
+            if np.isnan(result[0]) :
+                print()
+                print(s, e, i, e_on_batch)
             #perplexity = pow(math.e,np.average(list_loss))
             elapsed_time = time.time() - s_time
             sys.stdout.write("\r"+str(e)+"/"+str(row)+" "+str(int(elapsed_time))+"s "+"\t"+
@@ -246,8 +244,8 @@ class Seq2SeqModel :
         return model
 
     #応答文生成
-    def response(self,e_input,length) :
-        encoder_outputs, state_h, state_c = encoder_model.predict(e_input)
+    def response(self,enc_model,dec_model,e_input,length,words_indices,indices_words) :
+        encoder_outputs, state_h, state_c = enc_model.predict(e_input)
         states_value = [state_h,state_c]
 
         #空のターゲット生成
@@ -256,7 +254,7 @@ class Seq2SeqModel :
 
         decoded_sentence = ''
         for i in range(0,length) :
-            output_tokens, h, c = decoder_model.predict([target_seq]+states_value)
+            output_tokens, h, c = dec_model.predict([target_seq]+states_value)
 
             sampled_token_index = np.argmax(output_tokens[0,0,:])
             sampled_char = indices_words[sampled_token_index]
@@ -276,10 +274,10 @@ class Seq2SeqModel :
 
 #辞書をロード
 with open("words_indices.pickle", "rb") as l :
-    word_indices=pickle.load(l)
+    words_indices = pickle.load(l)
 
 with open("indices_words.pickle", "rb") as m :
-    indices_word=pickle.load(m)
+    indices_words = pickle.load(m)
 
 #単語ファイルロード
 with open("words.pickle", "rb") as ff :
@@ -308,28 +306,79 @@ d_train, d_test = np.vsplit(d,[n_split])
 t_train, t_test = np.vsplit(t,[n_split])
 vec_dim = 400
 epochs = 10
-batch_size = 20
+batch_size = 32
 input_dim = len(words)
 output_dim = input_dim
 #隠れ層の次元
 n_hidden = int(vec_dim*2)
 
-prediction = Seq2SeqModel(maxlen_e,maxlen_d,n_hidden,input_dim,vec_dim,output_dim)
-emb_param = 'param_seq2seq01.hdf5'
-row = e_train.shape[0]
-e_train = e_train.reshape(row,maxlen_e)
-d_train = d_train.reshape(row,maxlen_d)
-t_train = t_train.reshape(row,maxlen_d)
-model = prediction.train(e_train,d_train,t_train,batch_size,epochs,emb_param)
-#ネットワーク図出力
-plot_model(model, show_shapes=True,to_file='seq2seq01.png')
-#学習済みパラメータセーブ
-model.save_weights(emb_param)                               
+parser = argparse.ArgumentParser()
+parser.add_argument("--train", help="optional", action="store_true")
+args = parser.parse_args()
 
-row2 = e_test.shape[0]
-e_test = e_test.reshape(row2,maxlen_e)
-d_test = d_test.reshape(row2,maxlen_d)
-#t_test=t_test.reshape(row2,maxlen_d)
-print()
-perplexity = prediction.eval_perplexity(model,e_test,d_test,t_test,batch_size) 
-print('Perplexity=',perplexity)
+if args.train :
+	prediction = Seq2SeqModel(maxlen_e,maxlen_d,n_hidden,input_dim,vec_dim,output_dim)
+	emb_param = "param_seq2seq01.hdf5"
+	row = e_train.shape[0]
+	e_train = e_train.reshape(row,maxlen_e)
+	d_train = d_train.reshape(row,maxlen_d)
+	t_train = t_train.reshape(row,maxlen_d)
+	model = prediction.train(e_train,d_train,t_train,batch_size,epochs,emb_param)
+	#ネットワーク図出力
+	plot_model(model, show_shapes=True,to_file='seq2seq01.png')
+	#学習済みパラメータセーブ
+	model.save_weights(emb_param)                               
+
+	row2 = e_test.shape[0]
+	e_test = e_test.reshape(row2,maxlen_e)
+	d_test = d_test.reshape(row2,maxlen_d)
+	#t_test=t_test.reshape(row2,maxlen_d)
+	print()
+	perplexity = prediction.eval_perplexity(model,e_test,d_test,t_test,batch_size) 
+	print('Perplexity=',perplexity)
+
+else :
+    dialog = Seq2SeqModel(maxlen_e,1,n_hidden,input_dim,vec_dim,output_dim)
+    model, encoder_model, decoder_model = dialog.create_model()
+	
+    plot_model(encoder_model,show_shapes=True,to_file="seq2seq01_encoder.png")
+    plot_model(decoder_model,show_shapes=True,to_file="seq2seq01_decoder.png")
+    emb_param = "param_seq2seq01.hdf5"
+    model.load_weights(emb_param)
+    sys.stdin = codecs.getreader("utf_8")(sys.stdin)
+
+    jumanpp = Jumanpp()
+
+    while True :
+        cns_input = input(">> ")
+        if cns_input == "q":
+            print("終了")
+            break
+
+        result = jumanpp.analysis(cns_input)
+        input_text = []
+        for mrph in result.mrph_list():
+            input_text.append(mrph.midasi)
+
+        mat_input = np.array(input_text)
+
+        #入力データe_inputに入力文の単語インデックスを設定
+        e_input = np.zeros((1,maxlen_e))
+        for i in range(0,len(mat_input)) :
+            if mat_input[i] in words :
+                e_input[0,i] = words_indices[mat_input[i]]
+            else :
+                e_input[0,i] = words_indices["UNK"]
+
+        input_sentence=''
+        for i in range(0,maxlen_e) :
+            j = e_input[0,i]
+            if j != 0 :
+                input_sentence +=indices_words[j]
+            else :
+                break
+
+        #応答文組み立て
+        response = dialog.response(encoder_model,decoder_model,e_input,maxlen_d,words_indices,indices_words)
+
+        print(response)
