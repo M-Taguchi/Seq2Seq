@@ -191,7 +191,7 @@ class Seq2SeqModel :
             #mask行列作成
             mask1 = np.zeros((e-s,self.maxlen_d,self.output_dim),dtype=np.float32)
             for j in range(0,e-s) :
-                n_dim = maxlen_d - list(d_on_batch[j,:]).count(0.)
+                n_dim = self.maxlen_d - list(d_on_batch[j,:]).count(0.)
                 mask1[j,0:n_dim,:] = 1
                 n_loss += n_dim
 
